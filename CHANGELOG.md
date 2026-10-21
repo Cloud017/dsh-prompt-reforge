@@ -12,7 +12,7 @@ Hardening pass before the package goes up for listing in the DSH plugin director
 - Results that arrive after the author has kept typing are discarded and reported, instead of being dropped silently.
 - A failed model-catalog load leaves the control clickable: the click retries the load rather than starting a rewrite.
 - Compatibility range now carries an explicit second branch (`>=0.2.1-rc.1 <0.3.0-0 || >=0.2.2-0 <0.3.0-0`) so hosts on a `0.2.2-rc.*` line are accepted; a plain range does not match its own prereleases.
-- Test coverage for the write-back path, the in-flight edit race, the catalog-retry path, and manifest/peer range agreement (70 tests).
+- Test coverage for the write-back path, the in-flight edit race, the catalog-retry path, and manifest/peer range agreement (71 tests).
 
 ### Changed
 

@@ -100,7 +100,7 @@ plugin_manager action=install_bundle target=<本目录绝对路径>
 ## 开发
 
 ```sh
-node --test          # 70 项测试，除 Node 外无依赖
+node --test          # 71 项测试，除 Node 外无依赖
 ```
 
 测试覆盖提示词流水线、路由（回环拒绝那条用裸 socket 驱动，因为 `fetch` 伪造不了 `Host` 头）、以及按钮状态机（对着一个最小 React 替身跑，不进 DOM、不开浏览器）。

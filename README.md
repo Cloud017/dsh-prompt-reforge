@@ -100,7 +100,7 @@ Nothing to configure. Caps live at the top of `lib/index.js` and `lib/client.js`
 ## Development
 
 ```sh
-node --test          # 70 tests, no dependencies beyond Node
+node --test          # 71 tests, no dependencies beyond Node
 ```
 
 The suite covers the prompt pipeline, the route (including loopback rejection driven straight over a socket, since `fetch` cannot forge a `Host` header), and the button state machine against a minimal React stand-in — no DOM, no browser.
