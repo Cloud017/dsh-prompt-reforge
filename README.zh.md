@@ -27,13 +27,19 @@
 
 ## 安装
 
-走 DSH 插件管理器：
+走 DSH 插件管理器，直接指向发布出来的 tarball：
+
+```
+plugin_manager action=install_bundle target=https://github.com/Cloud017/dsh-prompt-reforge/releases/download/v0.2.0/dsh-prompt-reforge-0.2.0.tgz
+```
+
+或指向本地检出目录：
 
 ```
 plugin_manager action=install_bundle target=<本目录绝对路径>
 ```
 
-或在图形界面里：**插件 → 添加插件 → 安装第三方插件**，粘贴包名、GitHub 地址或本地目录，然后重启 DSH。
+或在图形界面里：**插件 → 添加插件 → 安装第三方插件**，粘贴 Release 地址、仓库地址或本地目录，然后重启 DSH。
 
 装好后 `dsh.profile.bundles` 会多一条。本插件只增加一行宿主行，不改你的模型路由、提供方或默认模型。
 

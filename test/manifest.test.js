@@ -89,6 +89,8 @@ test('every entry in `files` exists and the root holds no unexplained files', ()
 
   for (const name of readdirSync(root)) {
     if (repoOnly.has(name)) continue
+    // A tarball left behind by `npm pack` is a build artifact, not a source file.
+    if (name.endsWith('.tgz')) continue
     assert.ok(shipped.has(name), `${name} is in the package root but not shipped or ignored`)
   }
 })
