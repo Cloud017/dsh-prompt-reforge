@@ -2,6 +2,19 @@
 
 All notable changes to this package. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] — 2026-10-21
+
+Packaging-only release: the code is byte-identical to `0.2.1`.
+
+### Changed
+
+- The Chinese README moved to `docs/README.zh.md`. npm picks the first file matching `{README,README.*}` as the package readme, and that glob sorts `README.zh.md` ahead of `README.md` — so `0.2.1` rendered its registry page in Chinese with an English description above it. With only `README.md` in the root, the registry page follows the English file.
+- Install instructions now lead with the npm package name; the release tarball stays as a fallback.
+
+### Fixed
+
+- The `files` check in `test/manifest.test.js` compared bare root entries against `files`, so a nested entry such as `docs/README.zh.md` failed the suite. It now compares the first path segment.
+
 ## [0.2.1] — 2026-10-21
 
 Hardening pass before the package goes up for listing in the DSH plugin directory.

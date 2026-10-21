@@ -94,7 +94,9 @@ test('every entry in `files` exists and the root holds no unexplained files', ()
     'pnpm-lock.yaml',
     'package-lock.json',
   ])
-  const shipped = new Set(['package.json', ...manifest.files])
+  // Only the first path segment is compared: `files` may ship a directory or a
+  // single file nested inside one (`docs/README.zh.md`).
+  const shipped = new Set(['package.json', ...manifest.files.map((entry) => entry.split('/')[0])])
 
   for (const name of readdirSync(root)) {
     if (repoOnly.has(name)) continue

@@ -1,6 +1,6 @@
 {
   "name": "dsh-prompt-reforge",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Reforge a rough draft into a precise prompt inside the DSH composer, with one-click revert.",
   "keywords": [
     "dsh",
@@ -30,7 +30,7 @@
     "cordis.patch.yml",
     "icon.svg",
     "README.md",
-    "README.zh.md",
+    "docs/README.zh.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
