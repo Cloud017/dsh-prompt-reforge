@@ -29,7 +29,13 @@ The rewrite runs against **the model and provider already selected for that sess
 
 ## Install
 
-From the DSH plugin manager, pointing it at the packaged tarball:
+Published on npm, which is the preferred source — no build scripts, nothing to approve:
+
+```
+plugin_manager action=install_bundle target=dsh-prompt-reforge
+```
+
+The same package is also attached to the GitHub release as a tarball:
 
 ```
 plugin_manager action=install_bundle target=https://github.com/Cloud017/dsh-prompt-reforge/releases/download/v0.2.1/dsh-prompt-reforge-0.2.1.tgz
@@ -41,7 +47,7 @@ Or point it at a local checkout:
 plugin_manager action=install_bundle target=<absolute path to this directory>
 ```
 
-Or from the GUI: **Plugins → Add plugin → Install third-party plugin**, paste the release URL, the repository URL, or a local directory, then restart DSH.
+Or from the GUI: **Plugins → Add plugin → Install third-party plugin**, paste the package name, the release URL, the repository URL, or a local directory, then restart DSH.
 
 Once installed, `dsh.profile.bundles` gains one entry. The plugin adds exactly one host row; it does not change your model routing, providers, or default model.
 

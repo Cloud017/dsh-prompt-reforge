@@ -29,7 +29,13 @@
 
 ## 安装
 
-走 DSH 插件管理器，直接指向发布出来的 tarball：
+已发布到 npm，这是首选安装源——没有构建脚本，不需要审批任何东西：
+
+```
+plugin_manager action=install_bundle target=dsh-prompt-reforge
+```
+
+同一个包也作为 tarball 挂在 GitHub Release 上：
 
 ```
 plugin_manager action=install_bundle target=https://github.com/Cloud017/dsh-prompt-reforge/releases/download/v0.2.1/dsh-prompt-reforge-0.2.1.tgz
@@ -41,7 +47,7 @@ plugin_manager action=install_bundle target=https://github.com/Cloud017/dsh-prom
 plugin_manager action=install_bundle target=<本目录绝对路径>
 ```
 
-或在图形界面里：**插件 → 添加插件 → 安装第三方插件**，粘贴 Release 地址、仓库地址或本地目录，然后重启 DSH。
+或在图形界面里：**插件 → 添加插件 → 安装第三方插件**，粘贴包名、Release 地址、仓库地址或本地目录，然后重启 DSH。
 
 装好后 `dsh.profile.bundles` 会多一条。本插件只增加一行宿主行，不改你的模型路由、提供方或默认模型。
 
