@@ -1,6 +1,6 @@
 {
   "name": "dsh-prompt-reforge",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Reforge a rough draft into a precise prompt inside the DSH composer, with one-click revert.",
   "keywords": [
     "dsh",
@@ -35,13 +35,13 @@
     "LICENSE"
   ],
   "engines": {
-    "dsh": ">=0.2.1-rc.1 <0.3.0"
+    "dsh": ">=0.2.1-rc.1 <0.3.0-0 || >=0.2.2-0 <0.3.0-0"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-client-locale": ">=0.2.1-rc.1 <0.3.0",
-    "@deepseek-ai/dsh-client-ui-conversation": ">=0.2.1-rc.1 <0.3.0",
-    "@deepseek-ai/dsh-client-ui-model-selection": ">=0.2.1-rc.1 <0.3.0",
-    "@deepseek-ai/dsh-client-ui-renderer": ">=0.2.1-rc.1 <0.3.0"
+    "@deepseek-ai/dsh-client-locale": ">=0.2.1-rc.1 <0.3.0-0 || >=0.2.2-0 <0.3.0-0",
+    "@deepseek-ai/dsh-client-ui-conversation": ">=0.2.1-rc.1 <0.3.0-0 || >=0.2.2-0 <0.3.0-0",
+    "@deepseek-ai/dsh-client-ui-model-selection": ">=0.2.1-rc.1 <0.3.0-0 || >=0.2.2-0 <0.3.0-0",
+    "@deepseek-ai/dsh-client-ui-renderer": ">=0.2.1-rc.1 <0.3.0-0 || >=0.2.2-0 <0.3.0-0"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-client-locale": {

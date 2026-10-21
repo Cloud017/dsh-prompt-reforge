@@ -10,6 +10,7 @@ import { test } from 'node:test'
 function createHarness() {
   const hookState = []
   const effectSlots = new Map()
+  const memoSlots = new Map()
   let cursor = 0
   let effects = []
   let pendingReplay = false
@@ -41,13 +42,22 @@ function createHarness() {
       if (!(slot in hookState)) hookState[slot] = { current: initial }
       return hookState[slot]
     },
-    useCallback(fn) {
-      cursor++
+    useCallback(fn, deps) {
+      const slot = cursor++
+      const previous = memoSlots.get(slot)
+      // Identity stability is the whole point of useCallback: effects that
+      // depend on the callback must not re-fire on every render.
+      if (previous !== undefined && !depsChanged(previous.deps, deps)) return previous.value
+      memoSlots.set(slot, { deps, value: fn })
       return fn
     },
-    useMemo(fn) {
-      cursor++
-      return fn()
+    useMemo(fn, deps) {
+      const slot = cursor++
+      const previous = memoSlots.get(slot)
+      if (previous !== undefined && !depsChanged(previous.deps, deps)) return previous.value
+      const value = fn()
+      memoSlots.set(slot, { deps, value })
+      return value
     },
     useEffect(fn, deps) {
       const slot = cursor++
@@ -135,13 +145,18 @@ function createStore(initial) {
 /**
  * Build the fake plugin context, run `apply`, and expose the registration.
  */
-function mountPlugin({ language = 'en', route = { provider: 'workbuddy', model: 'deepseek-v4.1-flash' } } = {}) {
+function mountPlugin({
+  language = 'en',
+  route = { provider: 'workbuddy', model: 'deepseek-v4.1-flash' },
+  status,
+  sessionId = 'session-1',
+} = {}) {
   const dictionaries = { en: {}, zh: {} }
   const registrations = []
   const slotsInjected = []
   const directory = {
     loads: 0,
-    store: createStore({ current: route, status: route === null ? 'loading' : 'ready' }),
+    store: createStore({ current: route, status: status ?? (route === null ? 'loading' : 'ready') }),
     load() {
       this.loads += 1
       return Promise.resolve(route === null ? { current: null } : { current: route })
@@ -171,8 +186,8 @@ function mountPlugin({ language = 'en', route = { provider: 'workbuddy', model: 
       assert.deepEqual(deps, ['modelDirectories'], 'only modelDirectories is injected late')
       run({
         modelDirectories: {
-          directoryFor(sessionId) {
-            assert.equal(sessionId, 'session-1')
+          directoryFor(id) {
+            assert.equal(id, sessionId)
             return directory
           },
         },
@@ -198,31 +213,56 @@ function mountPlugin({ language = 'en', route = { provider: 'workbuddy', model: 
 }
 
 /**
- * Render the control and settle it.
+ * Mount the control and drive it through re-renders the way React would.
  *
- * Effects run after the render that scheduled them, so a state change written
- * from an effect is only visible on the next pass. Two passes are enough for
- * the control's state machine.
+ * `update()` keeps hook state, refs and the external-store subscription alive,
+ * so a ref written during one render is still readable in the next — the
+ * control relies on exactly that to notice edits that land while a request is
+ * in flight.
  *
  * @param {Function} component
  * @param {object} props
  * @param {string} draft
+ * @param {Array<object>} occurrences
  */
-function render(component, props, draft, occurrences = []) {
-  const useInput = (selector) => selector({ draft, draftRev: 3, occurrences })
+function mount(component, props, draft, occurrences = []) {
   const settled = { ...props, inputActions: props.inputActions ?? { setDraft() {} } }
+  let current = { draft, occurrences }
   let element
 
-  // Two passes: an effect that writes plugin state schedules a re-render, and
-  // that state only becomes visible on the following pass.
-  harness.remount()
-  for (let pass = 0; pass < 2; pass += 1) {
-    harness.reset()
-    element = component({ ...settled, useInput })
-    harness.runEffects()
+  const paint = () => {
+    // Effects run after the render that scheduled them, so a state change
+    // written from an effect becomes visible on the following pass.
+    for (let pass = 0; pass < 2; pass += 1) {
+      harness.reset()
+      element = component({
+        ...settled,
+        useInput: (selector) =>
+          selector({ draft: current.draft, draftRev: 3, occurrences: current.occurrences }),
+      })
+      harness.runEffects()
+    }
+    return element
   }
 
-  return { element }
+  harness.remount()
+  paint()
+
+  return {
+    get element() {
+      return element
+    },
+    /** Re-render with new composer content, keeping component state alive. */
+    update(nextDraft, nextOccurrences = current.occurrences) {
+      current = { draft: nextDraft, occurrences: nextOccurrences }
+      return paint()
+    },
+  }
+}
+
+/** Convenience wrapper for assertions that only need the first paint. */
+function render(component, props, draft, occurrences = []) {
+  return { element: mount(component, props, draft, occurrences).element }
 }
 
 test('bundle exports the plugin shape', () => {
@@ -483,6 +523,182 @@ test('editing an enhanced draft drops the revert backup', async () => {
   } finally {
     globalThis.fetch = original
   }
+})
+
+test('a whole-draft rewrite goes through one insertText edit, not setDraft', async () => {
+  const original = globalThis.fetch
+  globalThis.fetch = async () => ({
+    status: 200,
+    json: async () => ({ ok: true, text: 'sharpened prompt' }),
+  })
+
+  try {
+    const { registration } = mountPlugin({ sessionId: 'session-insert' })
+    const props = registration.options.inject('session-insert')
+    const inserts = []
+    const drafts = []
+    const inputActions = {
+      insertText(text, span) {
+        inserts.push({ text, span })
+        return true
+      },
+      setDraft(text) {
+        drafts.push(text)
+      },
+    }
+
+    const control = mount(registration.component, { ...props, inputActions }, 'rough draft')
+    control.element.props.onClick()
+    await new Promise((resolve) => setImmediate(resolve))
+
+    assert.equal(inserts.length, 1, 'the editor API is preferred when it exists')
+    assert.equal(inserts[0].text, 'sharpened prompt')
+    // Replacing the whole draft keeps the caret and undo history coherent, so
+    // the span has to cover every character and carry the live revision.
+    assert.deepEqual(inserts[0].span, { start: 0, end: 'rough draft'.length, draftRev: 3 })
+    assert.deepEqual(drafts, [], 'setDraft is only a fallback')
+  } finally {
+    globalThis.fetch = original
+  }
+})
+
+test('a refused insertText is final: setDraft never runs over it', async () => {
+  const original = globalThis.fetch
+  globalThis.fetch = async () => ({
+    status: 200,
+    json: async () => ({ ok: true, text: 'sharpened prompt' }),
+  })
+
+  try {
+    const { registration } = mountPlugin({ sessionId: 'session-refuse' })
+    const props = registration.options.inject('session-refuse')
+    const drafts = []
+    const inputActions = {
+      // The real editor answers false when the revision moved, the message was
+      // sent, or the composer is gone — never when it is safe to force a write.
+      insertText: () => false,
+      setDraft: (text) => drafts.push(text),
+    }
+
+    const control = mount(registration.component, { ...props, inputActions }, 'rough draft')
+    control.element.props.onClick()
+    await new Promise((resolve) => setImmediate(resolve))
+
+    assert.deepEqual(drafts, [], 'a refused edit must not be replaced by a forced one')
+    assert.equal(
+      control.update('rough draft').props['data-phase'],
+      'idle',
+      'no revert is offered for a write that never happened',
+    )
+  } finally {
+    globalThis.fetch = original
+  }
+})
+
+test('compositions without the editor API still write through setDraft', async () => {
+  const original = globalThis.fetch
+  globalThis.fetch = async () => ({
+    status: 200,
+    json: async () => ({ ok: true, text: 'sharpened prompt' }),
+  })
+
+  try {
+    const { registration } = mountPlugin({ sessionId: 'session-legacy' })
+    const props = registration.options.inject('session-legacy')
+    const drafts = []
+
+    const control = mount(
+      registration.component,
+      { ...props, inputActions: { setDraft: (text) => drafts.push(text) } },
+      'rough draft',
+    )
+    control.element.props.onClick()
+    await new Promise((resolve) => setImmediate(resolve))
+
+    assert.deepEqual(drafts, ['sharpened prompt'])
+    assert.equal(control.update('sharpened prompt').props['data-phase'], 'enhanced')
+  } finally {
+    globalThis.fetch = original
+  }
+})
+
+test('editing while the rewrite is in flight drops the result and says so', async () => {
+  const original = globalThis.fetch
+  let release
+  globalThis.fetch = () =>
+    new Promise((resolve) => {
+      release = () =>
+        resolve({ status: 200, json: async () => ({ ok: true, text: 'sharpened prompt' }) })
+    })
+
+  try {
+    const { registration } = mountPlugin({ sessionId: 'session-race' })
+    const props = registration.options.inject('session-race')
+    const drafts = []
+    const inputActions = { setDraft: (text) => drafts.push(text) }
+
+    const control = mount(registration.component, { ...props, inputActions }, 'rough draft')
+    control.element.props.onClick()
+
+    // The author keeps typing before the model answers.
+    assert.equal(control.update('rough draft, now longer').props['data-phase'], 'enhancing')
+
+    release()
+    await new Promise((resolve) => setImmediate(resolve))
+
+    assert.deepEqual(drafts, [], 'the newer text is never overwritten')
+
+    const dropped = control.update('rough draft, now longer')
+    assert.equal(dropped.props['data-phase'], 'stale')
+    assert.match(dropped.props.title, /edited the draft while it was being reforged/)
+  } finally {
+    globalThis.fetch = original
+  }
+})
+
+test('a dropped result clears once the author edits again', async () => {
+  const original = globalThis.fetch
+  globalThis.fetch = async () => ({
+    status: 200,
+    json: async () => ({ ok: true, text: 'sharpened prompt' }),
+  })
+
+  try {
+    const { registration } = mountPlugin({ sessionId: 'session-dropped' })
+    const props = registration.options.inject('session-dropped')
+    const inputActions = { setDraft() {} }
+
+    const control = mount(registration.component, { ...props, inputActions }, 'rough draft')
+    control.element.props.onClick()
+    // Editing before the answer arrives is what produces the drop notice.
+    control.update('rough draft v2')
+    await new Promise((resolve) => setImmediate(resolve))
+
+    assert.equal(control.update('rough draft v2').props['data-phase'], 'stale')
+    assert.equal(control.update('rough draft v3').props['data-phase'], 'idle')
+  } finally {
+    globalThis.fetch = original
+  }
+})
+
+test('a failed catalog load keeps the button clickable and retries it', () => {
+  const { registration, directory } = mountPlugin({
+    sessionId: 'session-broken',
+    route: null,
+    status: 'error',
+  })
+  const props = registration.options.inject('session-broken')
+
+  const { element } = render(registration.component, props, 'draft')
+  // A broken catalog is recoverable, so it must not look like "no model picked".
+  assert.equal(element.props.disabled, false)
+  assert.equal(element.props['aria-disabled'], undefined)
+  assert.equal(element.props.title, 'The model list failed to load. Click to retry.')
+
+  // The mount already asked once; the click asks again rather than rewriting.
+  assert.equal(directory.loads, 1)
+  element.props.onClick()
+  assert.equal(directory.loads, 2, 'the click retries the catalog load')
 })
 
 test('copy is registered for both locales', () => {

@@ -31,12 +31,18 @@ test('the manifest declares the metadata the market reads', () => {
   assert.equal(manifest.publishConfig.access, 'public')
 })
 
+/** The supported host line, kept in one place so manifest and docs agree. */
+const HOST_RANGE = '>=0.2.1-rc.1 <0.3.0-0 || >=0.2.2-0 <0.3.0-0'
+
 test('the host compatibility range is a plain, parseable range', () => {
   // `dshmarket` reads both spellings and prefers the top-level one; keep one.
   assert.equal(typeof manifest.engines.dsh, 'string')
   assert.ok(manifest.engines.dsh.length <= 256)
   assert.equal(manifest.dsh.engines, undefined, 'do not declare the range twice')
-  assert.match(manifest.engines.dsh, />=0\.2\.1-rc\.1 <0\.3\.0/)
+  // Plain ranges do not match their own prereleases, so the range needs an
+  // explicit `||` branch to accept hosts like 0.2.2-rc.1. Spelling it out in
+  // full makes a silent downgrade to the naive form fail here.
+  assert.equal(manifest.engines.dsh, HOST_RANGE)
 })
 
 test('every declared peer is a harness package and marked optional', () => {
@@ -45,6 +51,9 @@ test('every declared peer is a harness package and marked optional', () => {
   for (const name of peers) {
     assert.match(name, /^@deepseek-ai\//, `${name} must be a harness package`)
     assert.equal(manifest.peerDependenciesMeta[name]?.optional, true, `${name} must be optional`)
+    // Peers and engines describe the same host line; drift between them would
+    // make `pnpm` and `dshmarket` disagree about whether a host is supported.
+    assert.equal(manifest.peerDependencies[name], HOST_RANGE, `${name} must track the host range`)
   }
 })
 

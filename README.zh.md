@@ -16,11 +16,13 @@
 | --- | --- |
 | 草稿为空 | 按钮不可用，提示「先在输入框里写点内容，再来重铸。」 |
 | 未选模型 | 不可用，提示「先选一个模型，再重铸。」 |
+| 模型列表加载失败 | 仍可点击——点一下会重新加载模型列表，提示「模型列表加载失败，点击重试。」 |
 | 草稿里带引用 chip | 不可用——重写会丢掉 chip。提示「先移除引用，再重铸。」 |
 | 就绪 | 按钮激活，可以点。 |
 | 重铸中 | 转圈，显示「重铸中…」。再点一次即取消。 |
 | 已重铸 | 草稿被替换，同一个按钮变成「恢复原文」。 |
 | 之后继续打字 | 备份被丢弃，恢复操作不会悄悄吞掉你的修改。 |
+| 重铸途中继续打字 | 结果直接丢弃而不是覆盖你，tooltip 会说明原因。 |
 | 失败 | 草稿原样不动，原因写在 tooltip 里。 |
 
 重写走的是**该会话当前选中的模型与提供方**，因此结果贴合你接下来要对话的助手。草稿不会被发到别处。
@@ -30,7 +32,7 @@
 走 DSH 插件管理器，直接指向发布出来的 tarball：
 
 ```
-plugin_manager action=install_bundle target=https://github.com/Cloud017/dsh-prompt-reforge/releases/download/v0.2.0/dsh-prompt-reforge-0.2.0.tgz
+plugin_manager action=install_bundle target=https://github.com/Cloud017/dsh-prompt-reforge/releases/download/v0.2.1/dsh-prompt-reforge-0.2.1.tgz
 ```
 
 或指向本地检出目录：
@@ -48,13 +50,15 @@ plugin_manager action=install_bundle target=<本目录绝对路径>
 两半都在本包里：
 
 - **宿主半**（`lib/index.js`）在 harness 的 web server 上注册一条 `POST /plugins/dsh-prompt-reforge/enhance` 路由。它校验请求、对会话已路由的模型调用 `ctx.llm.stream()`、返回归一化后的文本。它拒绝非回环请求，请求体上限 256 KiB、草稿上限 20 000 字，浏览器断开或 60 秒预算耗尽都会中止模型调用。
-- **浏览器半**（`lib/client.js`）往 `conversation.input.right` 槽注册一个控件。它持有按钮状态机、用 `fetch` 调上面那条路由、并通过输入框自己的 `inputActions.setDraft` 把结果写回去。
+- **浏览器半**（`lib/client.js`）往 `conversation.input.right` 槽注册一个控件。它持有按钮状态机、用 `fetch` 调上面那条路由、并通过输入框的 `inputActions.insertText` 整段替换草稿（编辑器 API 不可用或拒绝时回落到 `inputActions.setDraft`）把结果写回去。
 
 浏览器 bundle 除模块加载器提供的 React 外不依赖任何东西；宿主半不从 `@deepseek-ai/*` 导入任何东西，而是通过 `ctx.get('llm')` 拿 LLM 运行时。
 
 ### 为什么状态放在 React 外面
 
 按钮状态按会话分键、存在模块级 Map 里，而不是组件 state。输入栏座位随时会被卸载重挂（切会话、改尺寸、布局变化），而一次进行中的重写必须熬过这些。取消用 `AbortController` 的身份判定，而不是序号，因此被取消的调用即便迟到，也绝不会覆盖你的草稿。
+
+整段重写走一次 insertText span，因此只占一步撤销，不会摧毁编辑器历史。结果回来的时候，实时草稿是从 ref 里读的：一旦它和发出去的内容不一致，结果就被丢弃并在 tooltip 里说明——悄悄覆盖别人正在打的字，比丢掉一次重写更糟。
 
 ### 请求契约
 
@@ -96,7 +100,7 @@ plugin_manager action=install_bundle target=<本目录绝对路径>
 ## 开发
 
 ```sh
-node --test          # 65 项测试，除 Node 外无依赖
+node --test          # 70 项测试，除 Node 外无依赖
 ```
 
 测试覆盖提示词流水线、路由（回环拒绝那条用裸 socket 驱动，因为 `fetch` 伪造不了 `Host` 头）、以及按钮状态机（对着一个最小 React 替身跑，不进 DOM、不开浏览器）。
@@ -115,7 +119,7 @@ test/            node:test 套件
 
 ## 兼容性
 
-DSH `0.2.1-rc.1` 及以上、`0.3.0` 以下。那些 `@deepseek-ai/*` peer 依赖声明为 optional：它们由 harness 组合图提供，本包从不安装；组合里缺一个只会降级功能，不会让客户端崩掉。
+DSH `0.2.1-rc.1` 及以上、`0.3.0` 以下，写成 `>=0.2.1-rc.1 <0.3.0-0 || >=0.2.2-0 <0.3.0-0`——两个分支是因为普通 range 不匹配自己的预发布版，否则 `0.2.2-rc.1` 会被拒。那些 `@deepseek-ai/*` peer 依赖声明为 optional：它们由 harness 组合图提供，本包从不安装；组合里缺一个只会降级功能，不会让客户端崩掉。
 
 ## 许可
 

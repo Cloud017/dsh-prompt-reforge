@@ -16,11 +16,13 @@ It sits in the composer toolbar next to the model selector. No panel, no modal: 
 | --- | --- |
 | Empty draft | The button stays inert and says *"Write something first, then reforge it."* |
 | No model selected | Inert, with *"Pick a model first, then reforge."* |
+| Model list failed to load | Still clickable — the click retries the load. *"The model list failed to load. Click to retry."* |
 | Draft with reference chips | Inert — rewriting would drop the chips. *"Remove reference chips before reforging."* |
 | Ready | The button arms. Press it. |
 | Rewriting | Spinner, *"Reforging…"*. Press again to cancel. |
 | Rewritten | The draft is replaced. The same button now reads *"Restore the original draft"*. |
 | You keep typing | The backup is dropped, so a revert can never silently swallow your edit. |
+| You type *while* it rewrites | The result is discarded rather than overwriting you, and the tooltip says so. |
 | Failure | The draft is left untouched and the tooltip carries the reason. |
 
 The rewrite runs against **the model and provider already selected for that session**, so the result matches the assistant you are about to talk to. Your draft is never sent anywhere else.
@@ -30,7 +32,7 @@ The rewrite runs against **the model and provider already selected for that sess
 From the DSH plugin manager, pointing it at the packaged tarball:
 
 ```
-plugin_manager action=install_bundle target=https://github.com/Cloud017/dsh-prompt-reforge/releases/download/v0.2.0/dsh-prompt-reforge-0.2.0.tgz
+plugin_manager action=install_bundle target=https://github.com/Cloud017/dsh-prompt-reforge/releases/download/v0.2.1/dsh-prompt-reforge-0.2.1.tgz
 ```
 
 Or point it at a local checkout:
@@ -48,13 +50,15 @@ Once installed, `dsh.profile.bundles` gains one entry. The plugin adds exactly o
 Two halves, both shipped in this package:
 
 - **Host half** (`lib/index.js`) registers one `POST /plugins/dsh-prompt-reforge/enhance` route on the harness web server. It validates the request, calls `ctx.llm.stream()` on the session's routed model, and returns the normalized text. It refuses non-loopback requests, caps the body at 256 KiB and the draft at 20 000 characters, and aborts the model call if the browser disconnects or the 60 s budget runs out.
-- **Browser half** (`lib/client.js`) registers a control into the `conversation.input.right` slot. It owns the button state machine, talks to the route with `fetch`, and writes the result back through the composer's own `inputActions.setDraft`.
+- **Browser half** (`lib/client.js`) registers a control into the `conversation.input.right` slot. It owns the button state machine, talks to the route with `fetch`, and writes the result back through the composer's `inputActions.insertText`, falling back to `inputActions.setDraft` when the editor API is unavailable or refuses the edit.
 
 The browser bundle declares no dependency beyond React from the module loader; the host half imports nothing from `@deepseek-ai/*` and reaches the LLM runtime through `ctx.get('llm')`.
 
 ### Why the state lives outside React
 
 Button state is keyed by session and kept in a module-level map rather than component state. Composer seats are unmounted and remounted freely (switching sessions, resizing, layout changes), and a rewrite in flight must survive that. Aborts are tracked by `AbortController` identity rather than by a sequence counter, so a late response from a cancelled call can never overwrite the draft.
+
+A rewrite writes the whole draft as a single `insertText` span, so it lands as one undo step instead of destroying the editor's history. The live draft is read from a ref at the moment the model answers: if it no longer matches what was sent, the result is dropped and the tooltip says why, because silently overwriting someone's typing is worse than losing a rewrite.
 
 ### Request contract
 
@@ -96,7 +100,7 @@ Nothing to configure. Caps live at the top of `lib/index.js` and `lib/client.js`
 ## Development
 
 ```sh
-node --test          # 65 tests, no dependencies beyond Node
+node --test          # 70 tests, no dependencies beyond Node
 ```
 
 The suite covers the prompt pipeline, the route (including loopback rejection driven straight over a socket, since `fetch` cannot forge a `Host` header), and the button state machine against a minimal React stand-in — no DOM, no browser.
@@ -115,7 +119,9 @@ test/            node:test suites
 
 ## Compatibility
 
-DSH `0.2.1-rc.1` and newer within `0.3.0`. The `@deepseek-ai/*` peer dependencies are declared optional: they are provided by the harness composition, never installed by this package, and a composition missing one degrades the feature instead of failing the client.
+DSH `0.2.1-rc.1` and newer within `0.3.0`, written as `>=0.2.1-rc.1 <0.3.0-0 || >=0.2.2-0 <0.3.0-0` — the two branches exist because a plain range does not match its own prereleases, so `0.2.2-rc.1` would otherwise be rejected.
+
+The `@deepseek-ai/*` peer dependencies are declared optional: they are provided by the harness composition, never installed by this package, and a composition missing one degrades the feature instead of failing the client.
 
 ## License
 
