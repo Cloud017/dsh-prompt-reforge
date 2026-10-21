@@ -1,0 +1,24 @@
+# Dependencies are never vendored; the bundle ships with none.
+node_modules/
+
+# Package manager state and logs
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+*.log
+.npm/
+.pnpm-store/
+
+# Build, test and editor by-products
+coverage/
+.nyc_output/
+.DS_Store
+Thumbs.db
+*.tgz
+.idea/
+.vscode/
+
+# Local scratch files used while developing against a live harness
+*.local.*
+.env
+.env.*

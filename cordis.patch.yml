@@ -1,0 +1,9 @@
+# Register the prompt-reforge host row.
+#
+# This adds exactly one row: the host half that serves
+# `POST /plugins/dsh-prompt-reforge/enhance`. It changes nothing about the
+# profile's model routing, its providers, or its default model — the rewrite
+# uses whatever route the session already has selected.
+- insert:
+    - id: prompt-reforge
+      name: dsh-prompt-reforge

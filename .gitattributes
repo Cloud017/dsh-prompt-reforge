@@ -1,0 +1,7 @@
+# Publish LF everywhere so the repository, the npm tarball and every
+# contributor's checkout agree byte for byte.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.webp binary
